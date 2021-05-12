@@ -4,7 +4,8 @@ import ciscoutil
 
 nameregexp = re.compile('^[ ]*name (.*)')
 switchportRegexp = re.compile('^[ ]*switchport (.*)')
-
+portNumberRegexp = re.compile('^interface GigabitEthernet([0-9]*)')
+vlanTagNoRegexp = re.compile('^interface vlan ([0-9]*)')
 class CiscoCfg(object):
     def loadCfg(self, configStr):
         configs = configStr.split('\n')
@@ -45,17 +46,44 @@ class CiscoCfg(object):
 
     def getVLANs(self):
         vlans = self.config.find_objects('^interface vlan')
+        vlanList = []
         for vlan in vlans:
+            tagMatchRes = vlanTagNoRegexp.findall(vlan.text.strip())
+            vlanEntry = {'tagNo': tagMatchRes[0]}
             for elem in vlan.children:
-                print(elem)
+                tokens = elem.text.strip().split(' ')
+                if tokens[0] == 'name':
+                    nameRes = nameregexp.findall(elem.text.strip())
+                    vlanEntry['name'] = ciscoutil.unescapeString(nameRes[0])
+            vlanList.append(vlanEntry)
+
+        return vlanList
 
     def getPorts(self):
-        ports = self.config.find_objects('^interface GigabitEthernet' + portNo + '$')
+        ports = self.config.find_objects('^interface GigabitEthernet')
         if len(ports) == 0:
             return []
         portList = []
-            
+        for port in ports:
+            portNumberMatch = portNumberRegexp.findall(port.text.strip())
+            portMeta = {'portNo': portNumberMatch[0]}
+            for elem in port.children:
+                switchportCmdMatch = switchportRegexp.findall(elem.text.strip())
+                if len(switchportCmdMatch) != 0:
+                    tokens = switchportCmdMatch[0].split(' ')
+                    if tokens[0] == 'trunk':
+                        if tokens[1] == 'native':
+                            portMeta['pvid'] = tokens[3]
+                        elif tokens[1] == 'allowed':
+                            portMeta['allowedList'] = tokens[3].split(',')
+                    #elif tokens[0] == 'general':
+                    #    portMeta['taggedList'] = 
+                    elif tokens[0] == 'mode':
+                        portMeta['mode'] = tokens[1]
 
+            portList.append(portMeta)
+
+        return portList
 
     def setPortVLAN(self, portNo, pvid, taggedList, allowedList):
         ports = self.config.find_objects('^interface GigabitEthernet' + str(portNo) + '$')
