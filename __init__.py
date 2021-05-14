@@ -26,14 +26,18 @@ async def rpcHandler(inputStream, outputStream):
                 sys.stderr.flush();
                 [type, msgid, method, params] = unpacker
                 if type == 0:
-                    try:
-                        methodFunc = getattr(ciscoCfg, method)
-                        res = methodFunc(*params)
-                        outputStream.write(msgpack.packb([1, msgid, None, res], use_bin_type=True))
-                        await outputStream.drain()
-                    except Exception as e:
-                        outputStream.write(msgpack.packb([1, msgid, str(e), None], use_bin_type=True))
-                        await outputStream.drain()
+                    if method == 'ping':
+                        outputstream.write(msgpack.packb([1, msgid, None, 'pong'], use_bin_type=True))
+                        await outputStream.drain();
+                    else:
+                        try:
+                            methodFunc = getattr(ciscoCfg, method)
+                            res = methodFunc(*params)
+                            outputStream.write(msgpack.packb([1, msgid, None, res], use_bin_type=True))
+                            await outputStream.drain()
+                        except Exception as e:
+                            outputStream.write(msgpack.packb([1, msgid, str(e), None], use_bin_type=True))
+                            await outputStream.drain()
     except Exception as e:
         print('Error: failed to handle rpc request', end='\n', flush=True, file=sys.stderr)
         print(str(e), end='\n', flush=True, file=sys.stderr)
@@ -55,6 +59,8 @@ def listen():
 async def main():
     server = await asyncio.start_server(rpcHandler, '127.0.0.1', 1337)
     async with server:
+        sys.stdout.write('Done!');
+        sys.stdout.flush();
         await server.serve_forever()
 
 asyncio.run(main())
