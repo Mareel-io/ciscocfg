@@ -6,6 +6,8 @@ nameregexp = re.compile('^[ ]*name (.*)')
 switchportRegexp = re.compile('^[ ]*switchport (.*)')
 portNumberRegexp = re.compile('^interface GigabitEthernet([0-9]*)')
 vlanTagNoRegexp = re.compile('^interface vlan ([0-9]*)')
+vlanRangeRegexp = re.compile('^vlan ([^a-zA-Z]*)')
+
 class CiscoCfg(object):
     def loadCfg(self, configStr):
         configs = configStr.split('\n')
@@ -17,6 +19,13 @@ class CiscoCfg(object):
             buf += line + '\n'
         return buf
 
+    def getVLANRange(self):
+        vlanRangeEntries = self.config.find_objects('^vlan [^a-zA-Z]+')
+        if len(vlanRangeEntries) == 0:
+            return ['1']
+        res = vlanRangeRegexp.findall(vlanRangeEntries[0].text.strip())
+        return (['1'] + res[0].split(','))
+
     def defineVLANRagne(self, vlanlist):
         vlandbstart = self.config.find_objects('^vlan database$')[0]
         # TODO: Handle None
@@ -27,7 +36,6 @@ class CiscoCfg(object):
         for vlanRange in vlanRangeEntries:
             vlanRange.delete()
         self.config.commit()
-        print()
         vlanRangeStr = ','.join(map(lambda e: str(e), vlanlist))
         self.config.insert_after('^vlan database$', 'vlan ' + vlanRangeStr, atomic=True)
 
@@ -49,7 +57,7 @@ class CiscoCfg(object):
         vlanList = []
         for vlan in vlans:
             tagMatchRes = vlanTagNoRegexp.findall(vlan.text.strip())
-            vlanEntry = {'tagNo': tagMatchRes[0]}
+            vlanEntry = {'tagNo': int(tagMatchRes[0])}
             for elem in vlan.children:
                 tokens = elem.text.strip().split(' ')
                 if tokens[0] == 'name':
@@ -66,14 +74,14 @@ class CiscoCfg(object):
         portList = []
         for port in ports:
             portNumberMatch = portNumberRegexp.findall(port.text.strip())
-            portMeta = {'portNo': portNumberMatch[0]}
+            portMeta = {'portNo': int(portNumberMatch[0])}
             for elem in port.children:
                 switchportCmdMatch = switchportRegexp.findall(elem.text.strip())
                 if len(switchportCmdMatch) != 0:
                     tokens = switchportCmdMatch[0].split(' ')
                     if tokens[0] == 'trunk':
                         if tokens[1] == 'native':
-                            portMeta['pvid'] = tokens[3]
+                            portMeta['pvid'] = int(tokens[3])
                         elif tokens[1] == 'allowed':
                             portMeta['allowedList'] = tokens[3].split(',')
                     #elif tokens[0] == 'general':

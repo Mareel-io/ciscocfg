@@ -5,6 +5,7 @@ import socket
 import threading
 import asyncio
 from io import BytesIO
+import traceback
 
 sys.stderr.write('Parser initialized\n');
 sys.stderr.flush();
@@ -36,7 +37,7 @@ async def rpcHandler(inputStream, outputStream):
                             outputStream.write(msgpack.packb([1, msgid, None, res], use_bin_type=True))
                             await outputStream.drain()
                         except Exception as e:
-                            outputStream.write(msgpack.packb([1, msgid, str(e), None], use_bin_type=True))
+                            outputStream.write(msgpack.packb([1, msgid, traceback.format_exc(), None], use_bin_type=True))
                             await outputStream.drain()
     except Exception as e:
         print('Error: failed to handle rpc request', end='\n', flush=True, file=sys.stderr)
