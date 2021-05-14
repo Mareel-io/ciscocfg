@@ -1,16 +1,60 @@
 import sys
 import msgpack
 from ciscocfg import CiscoCfg
+import socket
+import threading
+import asyncio
+from io import BytesIO
 
-ciscoCfg = CiscoCfg()
+sys.stderr.write('Parser initialized\n');
+sys.stderr.flush();
 
-unp = msgpack.Unpacker(sys.stdin.buffer, raw=False)
-for unpacker in unp:
-    [type, msgid, method, params] = unpacker
-    if type == 0:
-        try:
-            methodFunc = getattr(ciscoCfg, method)
-            res = methodFunc(*params)
-            sys.stdout.buffer.write(msgpack.packb([0, msgid, None, res], use_bin_type=True))
-        except Exception as e:
-            sys.stdout.buffer.write(msgpack.packb([0, msgid, str(e), None], use_bin_type=True))
+async def rpcHandler(inputStream, outputStream):
+    ciscoCfg = CiscoCfg()
+    
+    outputStream.write(msgpack.packb([2, 'init', None], use_bin_type=True))
+    await outputStream.drain()
+    unp = msgpack.Unpacker()
+    try:
+        while True:
+            data = await inputStream.read(1 << 20)
+            if not data:
+                break
+            unp.feed(data)
+            for unpacker in unp:
+                sys.stderr.write('Message received.\n');
+                sys.stderr.flush();
+                [type, msgid, method, params] = unpacker
+                if type == 0:
+                    try:
+                        methodFunc = getattr(ciscoCfg, method)
+                        res = methodFunc(*params)
+                        outputStream.write(msgpack.packb([1, msgid, None, res], use_bin_type=True))
+                        await outputStream.drain()
+                    except Exception as e:
+                        outputStream.write(msgpack.packb([1, msgid, str(e), None], use_bin_type=True))
+                        await outputStream.drain()
+    except Exception as e:
+        print('Error: failed to handle rpc request', end='\n', flush=True, file=sys.stderr)
+        print(str(e), end='\n', flush=True, file=sys.stderr)
+        outputStream.close()
+        await outputStream.wait_closed()
+
+def listen():
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server.bind(('127.0.0.1', 1337))
+    server.listen(10)
+    print('asdf')
+    while True:
+        conn, addr = server.accept()
+        print('asdf')
+        rpcHandlerThread = threading.Thread(target=rpcHandler, args=(conn, conn))
+        rpcHandlerThread.start()
+
+async def main():
+    server = await asyncio.start_server(rpcHandler, '127.0.0.1', 1337)
+    async with server:
+        await server.serve_forever()
+
+asyncio.run(main())
