@@ -7,7 +7,7 @@ with open("README.md", "r") as fh:
 setuptools.setup(
      name='ciscocfg',
      version='0.1',
-     scripts=['daemon.py'],
+     scripts=['ciscocfgd'],
      author="Mareel Team",
      author_email="admin@mareel.io",
      description="Cisco configuration manipulation daemon",
