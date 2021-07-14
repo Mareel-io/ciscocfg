@@ -1,6 +1,6 @@
 import ciscoconfparse
 import re
-import ciscoutil
+from .ciscoutil import *
 
 nameregexp = re.compile('^[ ]*name (.*)')
 switchportRegexp = re.compile('^[ ]*switchport (.*)')
