@@ -126,3 +126,108 @@ class CiscoCfg(object):
             taggedListStr = ','.join(map(lambda x: str(x), taggedList))
             ports[0].append_to_family('switchport general allowed vlan add ' + taggedListStr, auto_indent=True)
         self.config.commit()
+
+    def getQueuePriority(self):
+        wrr_prio = self.config.find_objects('^wrr-queue bandwidth')
+        base_arr = [1, 2, 4, 8, 16, 32, 64, 128]
+
+        if len(wrr_prio) == 0:
+            # Default values are 1 2 4 8 16 32 64 128
+            return base_arr
+        
+        wrr_prio = wrr_prio[0]
+        tokens = wrr_prio.split(' ')[2:]
+        for idx, v in enumerate(tokens):
+            base_arr[idx] = int(v)
+        
+        return base_arr
+        
+    def setQueuePriority(self, wrr):
+        data = wrr[:8]
+        if len(wrr) < 1:
+            return
+        wrr_prio = self.config.find_objects('^wrr-queue bandwidth')
+        if len(wrr_prio) > 0:
+            wrr_prio.delete()
+            self.config.commit()
+
+        cmdstr = 'wrr-queue bandwidth '
+        for v in data:
+            cmdstr += str(v)
+            cmdstr += ' '
+        
+        self.config.append_line(cmdstr)
+        self.config.commit()
+
+    def getStrictPriorityQ(self):
+        num_of_q = self.config.find_objects('^priority-queue out num-of-queues')
+        queue_num = num_of_q.split(' ')[4]
+        return int(queue_num)
+
+    def setStrictPriorityQ(self, queue_num):
+        num_of_q = self.config.find_objects('^priority-queue out num-of-queues')
+
+    def _getDefaultDSCPMap(self):
+        return {
+            0: 2, 1: 2, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1,
+            8: 1, 9: 3, 10: 3, 11: 3, 12: 3, 13: 3, 14: 3, 15: 3,
+            16: 7, 17: 4, 18: 4, 19: 4, 20: 4, 21: 4, 22: 4, 23: 4,
+            24: 7, 25: 5, 26: 5, 27: 5, 28: 5, 29: 5, 30: 5, 31: 5,
+            32: 8, 33: 6, 34: 6, 35: 6, 36: 6, 37: 6, 38: 6, 39: 6,
+            40: 7, 41: 8, 42: 8, 43: 8, 44: 8, 45: 8, 46: 8, 47: 8,
+            48: 7, 49: 7, 50: 7, 51: 7, 52: 7, 53: 7, 54: 7, 55: 7,
+            56: 7, 57: 7, 58: 7, 59: 7, 60: 7, 61: 7, 62: 7, 63: 7
+        }
+
+    def setDSCPMap(self, map):
+        newmap = {}
+        for k, v in map.items():
+            newmap[int(k)] = v
+
+        # Remove all queuemap
+        queuemap = self.config.find_objects('^qos map dscp-queue')
+        for ent in queuemap:
+            ent.delete()
+        self.config.commit()
+
+        for k, v in newmap.items():
+            cmd = 'qos map dscp-queue ' + str(k) + ' to ' + str(v)
+            self.config.append_line(cmd)
+
+        self.config.commit()
+
+    def getDSCPMap(self):
+        defaultMap = self._getDefaultDSCPMap()
+        queuemap = self.config.find_objects('^qos map dscp-queue')
+        for map in queuemap:
+            splt = map.split(' ')
+            defaultMap[int(splt[3])] = int(splt[5])
+
+        return defaultMap
+
+    def _getDefaultCoSMap(self):
+        return {
+            0: 1, 1: 2, 2: 3, 3: 6, 4: 5, 5: 8, 6: 8, 7: 7,
+        }
+
+    def setCoSMap(self, map):
+        queuemap = self.config.find_objects('^wrr-queue cos-map ')
+
+        for cmd in queuemap:
+            cmd.delete()
+        self.config.commit()
+
+        for k, v in map.items():
+            cmd = 'wrr-queue cos-map ' + str(v) + ' ' + str(k)
+            self.config.append_line(cmd)
+        self.config.commit()
+
+    def getCoSMap(self):
+        defaultMap = self._getDefaultCoSMap()
+        queuemap = self.config.find_objects('^wrr-queue cos-map ')
+
+        for cmd in queuemap:
+            splt = cmd.split(' ')
+            defaultMap[int(splt[3])] = int(splt[2])
+        
+        return defaultMap
