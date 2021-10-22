@@ -39,6 +39,8 @@ async def rpcHandler(inputStream, outputStream):
                             outputStream.write(msgpack.packb([1, msgid, None, res], use_bin_type=True))
                             await outputStream.drain()
                         except Exception as e:
+                            print('Error: failed to execute rpc request', end='\n', flush=True, file=sys.stderr)
+                            print(str(e), end='\n', flush=True, file=sys.stderr)
                             outputStream.write(msgpack.packb([1, msgid, traceback.format_exc(), None], use_bin_type=True))
                             await outputStream.drain()
     except Exception as e:
