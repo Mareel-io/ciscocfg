@@ -8,6 +8,17 @@ portNumberRegexp = re.compile('^interface GigabitEthernet([0-9]*)')
 vlanTagNoRegexp = re.compile('^interface vlan ([0-9]*)')
 vlanRangeRegexp = re.compile('^vlan ([^a-zA-Z]*)')
 
+shutdownRegexp = re.compile('^[ ]*shutdown')
+
+# Interface RegExp
+ifNameRegexp = re.compile('^([a-zA-Z]+)([0-9]+)')
+ifNameTable = {
+    'gi': 'GigabitEthernet',
+}
+confNameTable = { # TODO: Find way to automate this
+    'GigabitEthernet': 'gi',
+}
+
 class CiscoCfg(object):
     def loadCfg(self, configStr):
         configs = configStr.split('\n')
@@ -231,3 +242,30 @@ class CiscoCfg(object):
             defaultMap[int(splt[3])] = int(splt[2])
         
         return defaultMap
+
+    def setPort(self, port):
+        # TODO: Exact match?
+        ifMatch = ifNameRegexp.findall(port.portName)
+        if len(ifMatch) == 0:
+            return # TODO: Handle error
+        ifTuple = ifMatch[0]
+        ifType = ifNameTable[ifTuple[0]]
+        ifNo = ifNameTable[ifTuple[1]]
+
+        configPortName = ifType + ifNo
+        ports = self.config.find_objects('^interface ' + configPortName)
+        if len(ports) == 0:
+            self.config.append_line('interface ' + configPortName)
+            self.config.append_line('!')
+            self.config.commit()
+            ports = self.config.find_objects('^interface ' + configPortName)
+        children = ports[0].children
+        for child in children:
+            shutdownMatch = shutdownRegexp.findall(child.text.strip())
+            if (len(shutdownMatch) != 0):
+                child.delete()
+
+        self.config.commit()
+        ports = self.config.find_objects('^interface ' + configPortName)
+        if not port.isActive:
+            ports[0].append_to_family('shutdown')
