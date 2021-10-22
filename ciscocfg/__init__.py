@@ -245,7 +245,7 @@ class CiscoCfg(object):
 
     def setPort(self, port):
         # TODO: Exact match?
-        ifMatch = ifNameRegexp.findall(port.portName)
+        ifMatch = ifNameRegexp.findall(port['portName'])
         if len(ifMatch) == 0:
             return # TODO: Handle error
         ifTuple = ifMatch[0]
@@ -267,5 +267,5 @@ class CiscoCfg(object):
 
         self.config.commit()
         ports = self.config.find_objects('^interface ' + configPortName)
-        if not port.isActive:
+        if not port['isActive']:
             ports[0].append_to_family('shutdown')
